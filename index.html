@@ -1,0 +1,408 @@
+<!doctype html>
+
+<head>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="forge.bundle.js"></script>
+  <script type="text/javascript" src="node_modules/lodash/lodash.min.js"></script>
+  <script type="text/javascript" src="node_modules/platform/platform.js"></script>
+  <script type="text/javascript" src="node_modules/benchmark/benchmark.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/2.3.1/jsencrypt.min.js"></script>
+</head>
+
+<body>
+
+
+<ul id='keyCycleResults'>
+
+</ul>
+<div id="keyResult">
+
+</div>
+<br>
+<button id="keyBtn">
+  Test key generation
+</button>
+
+<ul id='encryptCycleResults'>
+
+</ul>
+<div id="encryptResult">
+
+</div>
+<br>
+<button id="encryptBtn">
+  Test encryption
+</button>
+
+<ul id='decryptCycleResults'>
+
+</ul>
+<div id="decryptResult">
+
+</div>
+<br>
+<button id="decryptBtn">
+  Test decryption
+</button>
+
+<script type="text/javascript">
+  'use strict';
+
+  function b64ToArrayBuffer(b64) {
+    return new Promise((res, rej) => {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'data:application/octet-stream;base64,' + b64);
+      xhr.responseType = 'arraybuffer';
+      xhr.addEventListener('load', e => res(xhr.response));
+      xhr.addEventListener('error', e => rej(xhr));
+      xhr.send();
+    });
+  }
+
+  function arrayBufferToString(arrayBuffer) {
+    var byteArray = new Uint8Array(arrayBuffer);
+    var byteString = '';
+    for (var i = 0; i < byteArray.byteLength; i++) {
+      byteString += String.fromCharCode(byteArray[i]);
+    }
+    return byteString;
+  }
+
+  function str2ab(str) {
+    var b = new ArrayBuffer(str.length);
+    var view = new Uint8Array(b);
+    for (var i = 0; i < str.length; i++) {
+      view[i] = str.charCodeAt(i);
+    }
+    return b;
+  }
+
+  function arrayBufferToBase64String(arrayBuffer) {
+    return btoa(arrayBufferToString(arrayBuffer));
+  }
+
+  function toPem(key, privateKey) {
+    if (privateKey) {
+      return "-----BEGIN RSA PRIVATE KEY-----\n" +
+        key + "\n" +
+        "-----END RSA PRIVATE KEY-----";
+    } else {
+      return "-----BEGIN RSA PUBLIC KEY-----\n" +
+        key + "\n" +
+        "-----END RSA PUBLIC KEY-----";
+    }
+
+  }
+
+  /*
+   ====================================================
+
+   Generate Key
+
+   ====================================================
+   */
+  // JSEncrypt
+  function jsencryptGenerate(deferred) {
+    var crypt = new JSEncrypt({
+      default_key_size: 2048
+    });
+
+    crypt.getKey(function () {
+      var privateKey = crypt.getPrivateKey();
+      var publicKey = crypt.getPublicKey();
+      deferred.resolve();
+    });
+  }
+
+  // Forge
+  function forgeGenerate(deferred) {
+    forge.pki.rsa.generateKeyPair({bits: 2048, e: 0x10001, workers: -1}, function (err, keypair) {
+      deferred.resolve();
+    });
+  }
+
+  // SubtleCrypto
+  function subtleCryptoGenerate(deferred) {
+    var keyPair;
+    window.crypto.subtle.generateKey(
+      {
+        name: "RSA-OAEP",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+        hash: {
+          name: "SHA-256"
+        },
+      },
+      true, ["encrypt", "decrypt"]
+    )
+      .then(function (keyP) {
+        keyPair = keyP;
+        return window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+      })
+      .then(function (privateK) {
+        return window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+      })
+      .then(function (publicK) {
+        deferred.resolve();
+      });
+  }
+
+  /*
+   ====================================================
+
+   Encrypt
+
+   ====================================================
+   */
+
+  var toEncrypt = 3294967295;
+
+  var jsencryptPublicKey = `-----BEGIN PUBLIC KEY-----
+MIIBITANBgkqhkiG9w0BAQEFAAOCAQ4AMIIBCQKCAQBeF18FkfgOV1ggSUy0TGWD
+EjI0rmOrXI7/N5koOFoQ7IZoMcX/jc/K0zCDKgbELphw02k6qA1q+XjsgXP+PNwn
+sFTIc6w8pKyxhbLH7IKy8FNqHzlyJS9/b90RQQvJaH98ouE9UCY8izGiusCjkdQ0
+oTEGeaV6QF6fjyniMzEzCqhdKRR0H3mGXlr1vTtOzY2MDNTrPSTKZraOu5VIglpt
+vOv/Iy5ae82mC0V/VOxrsjvCu1RP3NlBFDwOlluOXjtzYY4QqTmNGIyBBYXUv0Nh
+iADmR5qZpf+bOw5gZOB/gfqt62OYg0cHrVXSm6w1ZkdpCILIRsqpHONknpOmWgS9
+AgMBAAE=
+-----END PUBLIC KEY-----`;
+
+  var forgePublicKey = `-----BEGIN RSA PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU5TpPSu1PppMZ6RVZVyR8RFoQ5mxKVPel3eRdEKl9JSNcAE5+DfVf+N236LL69/UmZsSlleykwSn8x+Uu9pkisSUm4916ZVbLVDGsXzraDArogOjcTZ3X1p6TaqLvwx88nm0UyoDAQAusc/2UrlPX9m0YBDWpZSZR3G7uxrESpRjD9+YSAzbJIjYosF1PgDRMCsD3/loG8C3TSQAtvvz4eDGXfaTkYxgpfq5zj2niURzN35kkV7+IpFGs5k2TKTxJM8UdD2OXAESQ15J10T4M/D2eJ4tYfLfiF+OlvMl901Rz8GL7zwIDAQAB
+-----END RSA PUBLIC KEY-----`;
+
+  var subtlePublicKey = `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU5TpPSu1PppMZ6RVZVyR8RFoQ5mxKVPel3eRdEKl9JSNcAE5+DfVf+N236LL69/UmZsSlleykwSn8x+Uu9pkisSUm4916ZVbLVDGsXzraDArogOjcTZ3X1p6TaqLvwx88nm0UyoDAQAusc/2UrlPX9m0YBDWpZSZR3G7uxrESpRjD9+YSAzbJIjYosF1PgDRMCsD3/loG8C3TSQAtvvz4eDGXfaTkYxgpfq5zj2niURzN35kkV7+IpFGs5k2TKTxJM8UdD2OXAESQ15J10T4M/D2eJ4tYfLfiF+OlvMl901Rz8GL7zwIDAQAB`;
+
+  // JSEncrypt
+  var crypt = new JSEncrypt();
+  crypt.setPublicKey(jsencryptPublicKey);
+  function jsencryptEncrypt() {
+    crypt.encrypt(toEncrypt.toString());
+  }
+
+  // Forge
+  var pub = forge.pki.publicKeyFromPem(forgePublicKey);
+  var md = forge.md.sha256.create();
+  function forgeEncrypt() {
+    btoa(pub.encrypt(toEncrypt.toString(), 'RSA-OAEP', {
+      md: md
+    }));
+  }
+
+  // SubtleCrypto
+  var publicKey;
+  window.crypto.subtle.importKey(
+    "spki",
+    str2ab(atob(subtlePublicKey)), {
+      name: "RSA-OAEP",
+      hash: {
+        name: "SHA-256"
+      }
+    },
+    false,
+    ["encrypt"]
+  )
+    .then(function (pvtKey) {
+      publicKey = pvtKey;
+    });
+  function subtleCryptoEncrypt(deferred) {
+    window.crypto.subtle.encrypt({
+        name: 'RSA-OAEP',
+      },
+      publicKey,
+      str2ab(toEncrypt)
+    ).then(function (result) {
+      arrayBufferToBase64String(result);
+      deferred.resolve();
+    });
+  }
+
+
+  /*
+   ====================================================
+
+   Decrypt
+
+   ====================================================
+   */
+
+  var jsencryptEncrypted = 'B3cffsTF+I5UTnmfQ8WeApeskNzZe3OI9gEZqpj0uYe1eHxOxldqejw0MJWc1cKStPlD88kYLcUrSXRBLsIbbr7PBLHRI2zBbrGXRoRktRnWgK12kGbay0qKBNP4dyzl4ACccfgiW+TvNDvpbB5n0bRPn3WlShdUZjWQoqLTbvvE7AFJmaWrsWE9yacSi057Ot8uVmK49F8DBDPc30mxHWobpGdvZ78yE7ezOkc7TXHEkqQ0BqQnCHTMM36eXwb6JGFVPbmD/7kvAE1E60B7RDYXh9+ZfMfLX/Sd7tcuNXZCL+Qyc6AdQxVcIXO+qr+TuBef7eythMHYvanljV9xrQ==';
+  var subtleEncrypted = 'ilFFu5rDO+KhFQV1bh5FB4b6EOWVmvGDqMNSrKmadi/3028USQK8cDR8ec9MDXuOXjaCLvV38WB9wnvtzBKDFetRxsxkEtSv6ydHN2/3wckoQ3ogZ2xITqCvYgnqNEAbVS/JrGWvVI/RMwrB9dYrbocjVgyKb66WUOXC+ZPETB5Iq4uZeGXuA2T2rewmxExzPoygOoXgS4kTvQzj9JUUXOnNR2QT5oHAwDHgGz+VCI7Rirq2a3FXm6Bq5gLKjfAJdqjlxWp7qsRMf0l6jS6Bu6dwPqrqkY0Vy+SdOxJxmQFjLEvsv2AK0+MdYQqXvQJxBPcZ1gvmftGjN/Z8basLGw==';
+
+  var jsencryptPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+  MIIEogIBAAKCAQBeF18FkfgOV1ggSUy0TGWDEjI0rmOrXI7/N5koOFoQ7IZoMcX/
+  jc/K0zCDKgbELphw02k6qA1q+XjsgXP+PNwnsFTIc6w8pKyxhbLH7IKy8FNqHzly
+  JS9/b90RQQvJaH98ouE9UCY8izGiusCjkdQ0oTEGeaV6QF6fjyniMzEzCqhdKRR0
+  H3mGXlr1vTtOzY2MDNTrPSTKZraOu5VIglptvOv/Iy5ae82mC0V/VOxrsjvCu1RP
+  3NlBFDwOlluOXjtzYY4QqTmNGIyBBYXUv0NhiADmR5qZpf+bOw5gZOB/gfqt62OY
+  g0cHrVXSm6w1ZkdpCILIRsqpHONknpOmWgS9AgMBAAECggEAKMT9sl8uWaB1GgBI
+  0TLtJV8EDBmoLD894s5Hecr5E645CvrOLU5YRC1ALwVNy0HZYcHpLbZVog2Y3Pm2
+  tenPBw97nSOp9NjxzzX8Ym5Tr488xZXkAValfxWMd4Z0wf+ahfnZmQSanM8/YaCE
+  ChwNFAToRkL9dbxgg8i3wECoR9IGm5U5TPGUlaB2rigjeI6zFJaYMS/HFcAISV+P
+  uZilt00cmJ/dag2W7sEC76nNMOF7q2zUqec9p1InwiCbH2Mm54W6REi3kVFBa/5A
+  WxrD9x5QM/y2M/scNtf2DAxvnzuW1djIHKAxOgB3c2uSfD/DExe8TpM8mqWE5Zvz
+  xWmKYQKBgQClnm6Zx8xQobFPrNHIisSdnvK0PsrP+nDRWsXy56LGZSoqsIdThpOL
+  R/htQgatLakdHIC3/xRDkb6wGAyTz6bP8jLWnUyPYeEwQ6NsdMfuWZlsY0e7dG+K
+  FN5DYeyzQqIE2GaTJ+VWJx9LtT3QOtZI9AsQOFsVbv0rzVujLycjOQKBgQCRcEWn
+  hX04GYopgbUChbQSquO5TyZ3ofb6D2MKNlGrdHwcOeELe49Td0VprpdJxlY/VrPq
+  iEyKsxO+yYp2kIxKFG2rplw0z42OMJpSoEvdkuMgzQ8NH/RCiUXS2JV6gjdzWwIG
+  QYmmP7q2xY9aSkDP3lwHmJH9GJGeA5i2xm3ZpQKBgQCGxT/XH8DhNFKnNUiY2mNY
+  qElz50z+pRs9IZLHMTtCGnyPtIrKq05RHsXHktz/+5IMQG92Srngqi7z+P3zIhzq
+  RnqcLfBpFQs8TS4lSXqQOJUioD91CTDiukyLpJoK3YQeUUJXKTX0P222G8wrMFXD
+  k+OU1Wc5L9IQ3NFfHzXH8QKBgBgw+ZUM0jBDp0SSK56YyMQWIrzPGpHpoeAkMRAg
+  yuLfBEnZosI7MjLq8uPKQ6Xk1LHCZTjMpRapBM7GTT69emhUD43upQWvxFbzZKf7
+  u8LGTPtGwIspVoK+vJt+pRZ0lG6eo66QtimuDguavuaA1Vj+Hoaw7Q+RR59l77/v
+  L5R1AoGAQi1ix3j6TNceFbLJ0f0zHdmV0Kn7qXUCP2uxHN5pHY27D4GonvM3aeEQ
+  h/RxYpjWty6WD7CSxjWvKGgehPeLsW5BsMo0+ynDMzzkr6wfHPgpaMF3b82GSNKo
+  dwMCi1pZbpLm0sqxXVxoL++43pXqJmIiyqpgMFObn+IzquI5HNU=
+    -----END RSA PRIVATE KEY-----`;
+
+  var forgePrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJMvi3F0tTlOk9K7U+mkxnpFVlXJHxEWhDmbEpU96Xd5F0QqX0lI1wATn4N9V/43bfosvr39SZmxKWV7KTBKfzH5S72mSKxJSbj3XplVstUMaxfOtoMCuiA6NxNndfWnpNqou/DHzyebRTKgMBAC6xz/ZSuU9f2bRgENallJlHcbu7GsRKlGMP35hIDNskiNiiwXU+ANEwKwPf+WgbwLdNJAC2+/Ph4MZd9pORjGCl+rnOPaeJRHM3fmSRXv4ikUazmTZMpPEkzxR0PY5cARJDXknXRPgz8PZ4ni1h8t+IX46W8yX3TVHPwYvvPAgMBAAECggEAXpYheRtrgtKpVbE3jrEHhG+hg+9Srq7TanKMBYsx2H4IQ6D8erB+v+qTBnhFSUd0SAdBazrMhFx5+gu5avsYhXX3/TxPxYlqxh+irXkrpoBTVrAnCH2ySmrBv9Af4+2AMeQs3wxkgoTvjxDIlgJ4nRO8iZvYYgsRCYi3aejWd5ftpk0mJp8cPtonJZ/OeOgyiINaGPhSSNhzJnXg0qLXbNdEGMvZwg4J1y1wKNy66dGkWEamPdPNpFAhzKZRenjJiveRLILRSpH8b/YEib407gKGBY2XutOlNd1b0LdEELfpugqEz+nbwfwhIETNrYMzQrlho9H2Eucr+PukA6mlYQKBgQDbSsyhAuk5e7IkI+yE9hCcmHganUQNk6SxY0aiglIKSSn7WM4lDnOituR8XjQwiT5KqjokxpFgiVLpRHc/Ua9rL5EwstZ6sLoU3VD0MzGeQtk2GNXnPIKFs0TknDl+Yk1AhGu9gNLWL6GW/RikNRXPvjLhQkz5fpI6N/YOsWb7eQKBgQDCtY3eN3IYnlR10WE7uVzHJJ0dlGyqVdBipGinDkKkFj+MXSsbRdXPhWon0yTsVQUnyC8C8IRLvd6WLJrZ/dlCkTXbjJkSeE7opYZOMVoL0V+UL+cwVAOd4NnG1A5ZV2oNPKeViV7ujiV7xB1YRPi0Rulfd6cNojUfbhNn2sCXhwKBgQCThaZTStoKyaP1nBUo/T//mLJzdQiq+X/5tYd3G6SFNuL/K6bCVw6Dj/X1lIoXfLxjDlE/HDYAc2FLe7uc5R7VRJKv6B9ROkJ0ds5W+XmPtfjZ46tCe/pyZz8Za99hnk/J70trmJY9cJ2MLYe+L9gUgSdJUojl7rgAYlUtXTqiQQKBgF9Gwe38Cau8Ri4Ez+SOtrSH2Q3xZB8RsM+kDcW5N6jdbik8KezFhnNuoFxueIHgtI4b6c0xbjs15KZtmzSSf+6P6d/N89VS46H55Td79MkVogR8UE+YvNBTh51AhOj42l8xz/tfZgGrsvHWLFnWHjDxBh9+CFOmjQIdNge6xkUfAoGATWoE2tvHe9pFJuZeYxCcwK0ChgB5OzIa6fWMFWiaXEfmmfQ7N2utvQsbdaWISPaYKHKMJCZrWo2asbPf1KXn5nr5q1WkV+twozZnP9x9mNkekm4Wc3bf+m5fdzuYcBJpqOukGHAJXbaE1kvNGu0ZZ5+ZuitQwIi3eXZKo2hBcK4=
+-----END RSA PRIVATE KEY-----`;
+
+  var subtlePrivateKey = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJMvi3F0tTlOk9K7U+mkxnpFVlXJHxEWhDmbEpU96Xd5F0QqX0lI1wATn4N9V/43bfosvr39SZmxKWV7KTBKfzH5S72mSKxJSbj3XplVstUMaxfOtoMCuiA6NxNndfWnpNqou/DHzyebRTKgMBAC6xz/ZSuU9f2bRgENallJlHcbu7GsRKlGMP35hIDNskiNiiwXU+ANEwKwPf+WgbwLdNJAC2+/Ph4MZd9pORjGCl+rnOPaeJRHM3fmSRXv4ikUazmTZMpPEkzxR0PY5cARJDXknXRPgz8PZ4ni1h8t+IX46W8yX3TVHPwYvvPAgMBAAECggEAXpYheRtrgtKpVbE3jrEHhG+hg+9Srq7TanKMBYsx2H4IQ6D8erB+v+qTBnhFSUd0SAdBazrMhFx5+gu5avsYhXX3/TxPxYlqxh+irXkrpoBTVrAnCH2ySmrBv9Af4+2AMeQs3wxkgoTvjxDIlgJ4nRO8iZvYYgsRCYi3aejWd5ftpk0mJp8cPtonJZ/OeOgyiINaGPhSSNhzJnXg0qLXbNdEGMvZwg4J1y1wKNy66dGkWEamPdPNpFAhzKZRenjJiveRLILRSpH8b/YEib407gKGBY2XutOlNd1b0LdEELfpugqEz+nbwfwhIETNrYMzQrlho9H2Eucr+PukA6mlYQKBgQDbSsyhAuk5e7IkI+yE9hCcmHganUQNk6SxY0aiglIKSSn7WM4lDnOituR8XjQwiT5KqjokxpFgiVLpRHc/Ua9rL5EwstZ6sLoU3VD0MzGeQtk2GNXnPIKFs0TknDl+Yk1AhGu9gNLWL6GW/RikNRXPvjLhQkz5fpI6N/YOsWb7eQKBgQDCtY3eN3IYnlR10WE7uVzHJJ0dlGyqVdBipGinDkKkFj+MXSsbRdXPhWon0yTsVQUnyC8C8IRLvd6WLJrZ/dlCkTXbjJkSeE7opYZOMVoL0V+UL+cwVAOd4NnG1A5ZV2oNPKeViV7ujiV7xB1YRPi0Rulfd6cNojUfbhNn2sCXhwKBgQCThaZTStoKyaP1nBUo/T//mLJzdQiq+X/5tYd3G6SFNuL/K6bCVw6Dj/X1lIoXfLxjDlE/HDYAc2FLe7uc5R7VRJKv6B9ROkJ0ds5W+XmPtfjZ46tCe/pyZz8Za99hnk/J70trmJY9cJ2MLYe+L9gUgSdJUojl7rgAYlUtXTqiQQKBgF9Gwe38Cau8Ri4Ez+SOtrSH2Q3xZB8RsM+kDcW5N6jdbik8KezFhnNuoFxueIHgtI4b6c0xbjs15KZtmzSSf+6P6d/N89VS46H55Td79MkVogR8UE+YvNBTh51AhOj42l8xz/tfZgGrsvHWLFnWHjDxBh9+CFOmjQIdNge6xkUfAoGATWoE2tvHe9pFJuZeYxCcwK0ChgB5OzIa6fWMFWiaXEfmmfQ7N2utvQsbdaWISPaYKHKMJCZrWo2asbPf1KXn5nr5q1WkV+twozZnP9x9mNkekm4Wc3bf+m5fdzuYcBJpqOukGHAJXbaE1kvNGu0ZZ5+ZuitQwIi3eXZKo2hBcK4=';
+
+  // JSEncrypt
+  crypt.setPrivateKey(jsencryptPrivateKey);
+  function jsencryptDecrypt() {
+    crypt.decrypt(jsencryptEncrypted);
+  }
+
+  // Forge
+  var prv = forge.pki.privateKeyFromPem(forgePrivateKey);
+  function forgeDecrypt() {
+    prv.decrypt(atob(subtleEncrypted), 'RSA-OAEP', {
+      md: md
+    });
+  }
+
+  // SubtleCrypto
+  var privateKey;
+  window.crypto.subtle.importKey(
+    "pkcs8",
+    str2ab(atob(subtlePrivateKey)), {
+      name: "RSA-OAEP",
+      hash: {
+        name: "SHA-256"
+      }
+    },
+    false,
+    ["decrypt"]
+  )
+    .then(function (pvtKey) {
+      privateKey = pvtKey;
+    });
+  function subtleCryptoDecrypt(deferred) {
+    window.crypto.subtle.decrypt({name: "RSA-OAEP"}, privateKey, str2ab(atob(subtleEncrypted)))
+      .then(function (result) {
+        arrayBufferToString(result);
+        deferred.resolve();
+      });
+  }
+
+
+  var keyCycleResults = document.getElementById('keyCycleResults');
+  var keyResult = document.getElementById('keyResult');
+  var keyButton = document.getElementById('keyBtn');
+
+
+  var encryptCycleResults = document.getElementById('encryptCycleResults');
+  var encryptResult = document.getElementById('encryptResult');
+  var encryptButton = document.getElementById('encryptBtn');
+
+  var decryptCycleResults = document.getElementById('decryptCycleResults');
+  var decryptResult = document.getElementById('decryptResult');
+  var decryptButton = document.getElementById('decryptBtn');
+
+  // BENCHMARK KEY GENERATION ====================
+  keyButton.onclick = function runKeyGenerationTests() {
+
+    keyButton.disabled = true;
+    keyCycleResults.innerHTML = '';
+    keyResult.textContent = 'Tests running...';
+
+    var suite = new Benchmark.Suite;
+
+    // add tests
+    suite
+      .add('jsencryptGenerate', {'defer': true, 'fn': jsencryptGenerate})
+      .add('forgeGenerate', {'defer': true, 'fn': forgeGenerate})
+      .add('subtleCryptoGenerate', {'defer': true, 'fn': subtleCryptoGenerate})
+      // add listeners
+      .on('cycle', function (event) {
+        var result = document.createElement('li');
+        result.textContent = String(event.target);
+
+        document.getElementById('keyCycleResults')
+          .appendChild(result);
+      })
+      .on('complete', function () {
+        keyResult.textContent = 'Fastest is ' + this.filter('fastest').map('name');
+        keyButton.disabled = false;
+      })
+      // run async
+      .run({'async': true});
+  };
+
+  // BENCHMARK ENCRYPT ====================
+  encryptButton.onclick = function runKeyGenerationTests() {
+
+    encryptButton.disabled = true;
+    encryptCycleResults.innerHTML = '';
+    encryptResult.textContent = 'Tests running...';
+
+    var suite = new Benchmark.Suite;
+
+    // add tests
+    suite
+      .add('jsencryptEncrypt', {'fn': jsencryptEncrypt})
+      .add('forgeEncrypt', {'fn': forgeEncrypt})
+      .add('subtleCryptoEncrypt', {'defer': true, 'fn': subtleCryptoEncrypt})
+      // add listeners
+      .on('cycle', function (event) {
+        var result = document.createElement('li');
+        result.textContent = String(event.target);
+
+        document.getElementById('encryptCycleResults')
+          .appendChild(result);
+      })
+      .on('complete', function () {
+        encryptResult.textContent = 'Fastest is ' + this.filter('fastest').map('name');
+        encryptButton.disabled = false;
+      })
+      // run async
+      .run({'async': true});
+  };
+
+  // BENCHMARK DECRYPT ====================
+  decryptButton.onclick = function runKeyGenerationTests() {
+
+    decryptButton.disabled = true;
+    decryptCycleResults.innerHTML = '';
+    decryptResult.textContent = 'Tests running...';
+
+    var suite = new Benchmark.Suite;
+
+    // add tests
+    suite
+      .add('jsencryptDecrypt', {'fn': jsencryptDecrypt})
+      .add('forgeDecrypt', {'fn': forgeDecrypt})
+      .add('subtleCryptoDecrypt', {'defer': true, 'fn': subtleCryptoDecrypt})
+      // add listeners
+      .on('cycle', function (event) {
+        var result = document.createElement('li');
+        result.textContent = String(event.target);
+
+        document.getElementById('decryptCycleResults')
+          .appendChild(result);
+      })
+      .on('complete', function () {
+        decryptResult.textContent = 'Fastest is ' + this.filter('fastest').map('name');
+        decryptButton.disabled = false;
+      })
+      // run async
+      .run({'async': true});
+  };
+</script>
+</body>
