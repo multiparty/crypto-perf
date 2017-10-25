@@ -1,12 +1,20 @@
 {
   "name": "crypto-perf",
   "version": "1.0.0",
-  "description": "",
+  "description": "Performance comparison between JSEncrypt, Forge and SubtleCrypto.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Boston University Software & Application Innovation Lab",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/multiparty/crypto-perf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/multiparty/crypto-perf/issues"
+  },
+  "homepage": "https://github.com/multiparty/crypto-perf#readme",
   "dependencies": {
     "benchmark": "^2.1.2"
   }

@@ -1,0 +1,12 @@
+{
+  "description": "Performance comparison between JSEncrypt, Forge and SubtleCrypto.",
+  "license": "MIT",
+  "upload_type": "software",
+  "creators": [
+    {
+      "affiliation": "Boston University",
+      "name": "Frederick Jansen"
+    }
+  ],
+  "access_right": "open"
+}
