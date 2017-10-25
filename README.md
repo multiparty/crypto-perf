@@ -1,4 +1,6 @@
 # JS Crypto Performance
+[![DOI](https://zenodo.org/badge/73430536.svg)](https://zenodo.org/badge/latestdoi/73430536)
+
 Performance measurement of three JavaScript public-key cryptography implementations: JSEncrypt, Forge and SubtleCrypto (native).
 
 ## Results
