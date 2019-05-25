@@ -6,7 +6,8 @@
   <script type="text/javascript" src="node_modules/lodash/lodash.min.js"></script>
   <script type="text/javascript" src="node_modules/platform/platform.js"></script>
   <script type="text/javascript" src="node_modules/benchmark/benchmark.js"></script>
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/2.3.1/jsencrypt.min.js"></script>
+  <script type="text/javascript" src="sodium.js" async></script>
+  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jsencrypt/2.3.1/jsencrypt.min.js"></script>
 </head>
 
 <body>
@@ -94,6 +95,14 @@
 
   }
 
+  var sodiumReady = new Promise(function (resolve, reject) {
+    window.sodium = {
+      onload: function (sodium) {
+        resolve(sodium);
+      }
+    };
+  });
+
   /*
    ====================================================
 
@@ -147,6 +156,13 @@
       });
   }
 
+  function libsodiumGenerate(deferred) {
+    sodiumReady.then(function (sodium) {
+      sodium.crypto_box_keypair();
+      deferred.resolve();
+    });
+  }
+
   /*
    ====================================================
 
@@ -155,7 +171,7 @@
    ====================================================
    */
 
-  var toEncrypt = 3294967295;
+  var toEncrypt = '3294967295';
 
   var jsencryptPublicKey = `-----BEGIN PUBLIC KEY-----
 MIIBITANBgkqhkiG9w0BAQEFAAOCAQ4AMIIBCQKCAQBeF18FkfgOV1ggSUy0TGWD
@@ -172,6 +188,8 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU
 -----END RSA PUBLIC KEY-----`;
 
   var subtlePublicKey = `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU5TpPSu1PppMZ6RVZVyR8RFoQ5mxKVPel3eRdEKl9JSNcAE5+DfVf+N236LL69/UmZsSlleykwSn8x+Uu9pkisSUm4916ZVbLVDGsXzraDArogOjcTZ3X1p6TaqLvwx88nm0UyoDAQAusc/2UrlPX9m0YBDWpZSZR3G7uxrESpRjD9+YSAzbJIjYosF1PgDRMCsD3/loG8C3TSQAtvvz4eDGXfaTkYxgpfq5zj2niURzN35kkV7+IpFGs5k2TKTxJM8UdD2OXAESQ15J10T4M/D2eJ4tYfLfiF+OlvMl901Rz8GL7zwIDAQAB`;
+
+  var sodiumPublicKey = new Uint8Array([152, 70, 166, 63, 52, 125, 189, 91, 60, 26, 43, 183, 167, 8, 41, 201, 222, 57, 50, 215, 210, 133, 145, 137, 42, 109, 246, 63, 206, 7, 145, 16]);
 
   // JSEncrypt
   var crypt = new JSEncrypt();
@@ -217,6 +235,13 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU
     });
   }
 
+  // Libsodium
+  function sodiumEncrypt(deferred) {
+    sodiumReady.then(function (sodium) {
+      sodium.crypto_box_seal(toEncrypt, sodiumPublicKey);
+      deferred.resolve();
+    });
+  }
 
   /*
    ====================================================
@@ -228,6 +253,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApso0ez8cvQy3Y5OzkefvSTa30wpyTL4txdLU
 
   var jsencryptEncrypted = 'B3cffsTF+I5UTnmfQ8WeApeskNzZe3OI9gEZqpj0uYe1eHxOxldqejw0MJWc1cKStPlD88kYLcUrSXRBLsIbbr7PBLHRI2zBbrGXRoRktRnWgK12kGbay0qKBNP4dyzl4ACccfgiW+TvNDvpbB5n0bRPn3WlShdUZjWQoqLTbvvE7AFJmaWrsWE9yacSi057Ot8uVmK49F8DBDPc30mxHWobpGdvZ78yE7ezOkc7TXHEkqQ0BqQnCHTMM36eXwb6JGFVPbmD/7kvAE1E60B7RDYXh9+ZfMfLX/Sd7tcuNXZCL+Qyc6AdQxVcIXO+qr+TuBef7eythMHYvanljV9xrQ==';
   var subtleEncrypted = 'ilFFu5rDO+KhFQV1bh5FB4b6EOWVmvGDqMNSrKmadi/3028USQK8cDR8ec9MDXuOXjaCLvV38WB9wnvtzBKDFetRxsxkEtSv6ydHN2/3wckoQ3ogZ2xITqCvYgnqNEAbVS/JrGWvVI/RMwrB9dYrbocjVgyKb66WUOXC+ZPETB5Iq4uZeGXuA2T2rewmxExzPoygOoXgS4kTvQzj9JUUXOnNR2QT5oHAwDHgGz+VCI7Rirq2a3FXm6Bq5gLKjfAJdqjlxWp7qsRMf0l6jS6Bu6dwPqrqkY0Vy+SdOxJxmQFjLEvsv2AK0+MdYQqXvQJxBPcZ1gvmftGjN/Z8basLGw==';
+  var sodiumEncrypted = new Uint8Array([89, 131, 154, 223, 86, 246, 65, 32, 226, 185, 229, 1, 74, 197, 83, 41, 172, 83, 147, 83, 36, 224, 207, 97, 61, 148, 162, 183, 18, 12, 105, 21, 216, 222, 33, 85, 93, 153, 54, 100, 120, 35, 172, 255, 172, 170, 133, 48, 222, 203, 24, 201, 114, 228, 211, 205, 176, 212])
 
   var jsencryptPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
   MIIEogIBAAKCAQBeF18FkfgOV1ggSUy0TGWDEjI0rmOrXI7/N5koOFoQ7IZoMcX/
@@ -262,6 +288,8 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJM
 -----END RSA PRIVATE KEY-----`;
 
   var subtlePrivateKey = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJMvi3F0tTlOk9K7U+mkxnpFVlXJHxEWhDmbEpU96Xd5F0QqX0lI1wATn4N9V/43bfosvr39SZmxKWV7KTBKfzH5S72mSKxJSbj3XplVstUMaxfOtoMCuiA6NxNndfWnpNqou/DHzyebRTKgMBAC6xz/ZSuU9f2bRgENallJlHcbu7GsRKlGMP35hIDNskiNiiwXU+ANEwKwPf+WgbwLdNJAC2+/Ph4MZd9pORjGCl+rnOPaeJRHM3fmSRXv4ikUazmTZMpPEkzxR0PY5cARJDXknXRPgz8PZ4ni1h8t+IX46W8yX3TVHPwYvvPAgMBAAECggEAXpYheRtrgtKpVbE3jrEHhG+hg+9Srq7TanKMBYsx2H4IQ6D8erB+v+qTBnhFSUd0SAdBazrMhFx5+gu5avsYhXX3/TxPxYlqxh+irXkrpoBTVrAnCH2ySmrBv9Af4+2AMeQs3wxkgoTvjxDIlgJ4nRO8iZvYYgsRCYi3aejWd5ftpk0mJp8cPtonJZ/OeOgyiINaGPhSSNhzJnXg0qLXbNdEGMvZwg4J1y1wKNy66dGkWEamPdPNpFAhzKZRenjJiveRLILRSpH8b/YEib407gKGBY2XutOlNd1b0LdEELfpugqEz+nbwfwhIETNrYMzQrlho9H2Eucr+PukA6mlYQKBgQDbSsyhAuk5e7IkI+yE9hCcmHganUQNk6SxY0aiglIKSSn7WM4lDnOituR8XjQwiT5KqjokxpFgiVLpRHc/Ua9rL5EwstZ6sLoU3VD0MzGeQtk2GNXnPIKFs0TknDl+Yk1AhGu9gNLWL6GW/RikNRXPvjLhQkz5fpI6N/YOsWb7eQKBgQDCtY3eN3IYnlR10WE7uVzHJJ0dlGyqVdBipGinDkKkFj+MXSsbRdXPhWon0yTsVQUnyC8C8IRLvd6WLJrZ/dlCkTXbjJkSeE7opYZOMVoL0V+UL+cwVAOd4NnG1A5ZV2oNPKeViV7ujiV7xB1YRPi0Rulfd6cNojUfbhNn2sCXhwKBgQCThaZTStoKyaP1nBUo/T//mLJzdQiq+X/5tYd3G6SFNuL/K6bCVw6Dj/X1lIoXfLxjDlE/HDYAc2FLe7uc5R7VRJKv6B9ROkJ0ds5W+XmPtfjZ46tCe/pyZz8Za99hnk/J70trmJY9cJ2MLYe+L9gUgSdJUojl7rgAYlUtXTqiQQKBgF9Gwe38Cau8Ri4Ez+SOtrSH2Q3xZB8RsM+kDcW5N6jdbik8KezFhnNuoFxueIHgtI4b6c0xbjs15KZtmzSSf+6P6d/N89VS46H55Td79MkVogR8UE+YvNBTh51AhOj42l8xz/tfZgGrsvHWLFnWHjDxBh9+CFOmjQIdNge6xkUfAoGATWoE2tvHe9pFJuZeYxCcwK0ChgB5OzIa6fWMFWiaXEfmmfQ7N2utvQsbdaWISPaYKHKMJCZrWo2asbPf1KXn5nr5q1WkV+twozZnP9x9mNkekm4Wc3bf+m5fdzuYcBJpqOukGHAJXbaE1kvNGu0ZZ5+ZuitQwIi3eXZKo2hBcK4=';
+
+  var sodiumPrivateKey = new Uint8Array([75, 146, 200, 109, 180, 57, 142, 58, 178, 81, 19, 122, 54, 12, 81, 223, 113, 16, 240, 201, 34, 130, 97, 172, 120, 162, 37, 187, 11, 122, 34, 5]);
 
   // JSEncrypt
   crypt.setPrivateKey(jsencryptPrivateKey);
@@ -301,6 +329,13 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJM
       });
   }
 
+  function sodiumDecrypt(deferred) {
+    sodiumReady.then(function (sodium) {
+      sodium.to_string(sodium.crypto_box_seal_open(sodiumEncrypted, sodiumPublicKey, sodiumPrivateKey));
+      deferred.resolve();
+    });
+  }
+
 
   var keyCycleResults = document.getElementById('keyCycleResults');
   var keyResult = document.getElementById('keyResult');
@@ -329,6 +364,7 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJM
       .add('jsencryptGenerate', {'defer': true, 'fn': jsencryptGenerate})
       .add('forgeGenerate', {'defer': true, 'fn': forgeGenerate})
       .add('subtleCryptoGenerate', {'defer': true, 'fn': subtleCryptoGenerate})
+      .add('libsodiumGenerate', {'defer': true, 'fn': libsodiumGenerate})
       // add listeners
       .on('cycle', function (event) {
         var result = document.createElement('li');
@@ -359,6 +395,7 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJM
       .add('jsencryptEncrypt', {'fn': jsencryptEncrypt})
       .add('forgeEncrypt', {'fn': forgeEncrypt})
       .add('subtleCryptoEncrypt', {'defer': true, 'fn': subtleCryptoEncrypt})
+      .add('sodiumEncrypt', {'defer': true, 'fn': sodiumEncrypt})
       // add listeners
       .on('cycle', function (event) {
         var result = document.createElement('li');
@@ -389,6 +426,7 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmyjR7Pxy9DLdjk7OR5+9JNrfTCnJM
       .add('jsencryptDecrypt', {'fn': jsencryptDecrypt})
       .add('forgeDecrypt', {'fn': forgeDecrypt})
       .add('subtleCryptoDecrypt', {'defer': true, 'fn': subtleCryptoDecrypt})
+      .add('sodiumDecrypt', {'defer': true, 'fn': sodiumDecrypt})
       // add listeners
       .on('cycle', function (event) {
         var result = document.createElement('li');
